@@ -91,7 +91,7 @@ def paletteMaker(image_array):
         rounded = rounded.astype(np.uint8)
         pixels = np.unique(rounded.reshape(-1, 4), axis=0)
         colors = [[0, 0, 0, 0]] + [p.tolist() for p in pixels if p[3] != 0]
-        if 0 < len(colors) <= 64:
+        if 0 < len(colors) <= 70:
             break
     return [[format(c[3], '08b')] + [format(v, '08b') for v in c[:3]] for c in colors], round_step
 
