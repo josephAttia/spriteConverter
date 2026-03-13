@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spin Sprite & Tilemap Renderer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Checkerboard pattern for identifying transparent pixels */
+        .checkerboard {
+            background-color: #1a1a1a;
+            background-image: 
+              linear-gradient(45deg, #2a2a2a 25%, transparent 25%, transparent 75%, #2a2a2a 75%, #2a2a2a),
+              linear-gradient(45deg, #2a2a2a 25%, transparent 25%, transparent 75%, #2a2a2a 75%, #2a2a2a);
+            background-size: 16px 16px;
+            background-position: 0 0, 8px 8px;
+        }
+        
+        /* Pixel-perfect scaling */
+        .pixelated {
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+        }
+
+        #mapCanvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 h-screen flex flex-col md:flex-row font-sans overflow-hidden selection:bg-blue-500 selection:text-white">
+    
+    <!-- Left Panel: Input Area -->
+    <div class="w-full md:w-1/3 flex flex-col p-4 border-b md:border-b-0 md:border-r border-gray-700 h-1/2 md:h-full bg-gray-800 shadow-lg z-10">
+        <h1 class="text-2xl font-bold mb-1 text-blue-400">Spin Renderer</h1>
+        <p class="text-xs text-gray-400 mb-4">Paste your array blocks, palettes, and tile maps below.</p>
+        
+        <textarea id="inputBox" class="flex-grow bg-gray-950 text-green-400 p-3 font-mono text-xs border border-gray-700 rounded mb-4 focus:outline-none focus:border-blue-500 resize-none" spellcheck="false" placeholder="pub load_test3_sprites()
+    debug(`screen spritedef 0 32 32 ...)
+...
+dat test3_tiles byte {
+}0, 1, 0, 2, ... {
+...
+test3_0 byte {
+}$01,$01,..."></textarea>
+        
+        <div class="flex items-center justify-between">
+            <div id="stats" class="text-xs text-gray-400 font-mono">Waiting for input...</div>
+            <button id="renderBtn" class="bg-blue-600 hover:bg-blue-500 transition-colors text-white font-bold py-2 px-6 rounded shadow cursor-pointer">
+                Render
+            </button>
+        </div>
+    </div>
+
+    <!-- Right Panel: Display Area -->
+    <div class="w-full md:w-2/3 flex flex-col h-1/2 md:h-full relative bg-gray-900">
+        
+        <!-- Tabs -->
+        <div class="flex border-b border-gray-700 bg-gray-800 px-4 pt-2">
+            <button id="tabMap" class="px-5 py-2 text-blue-400 border-b-2 border-blue-400 font-medium transition-colors">
+                Tile Map
+            </button>
+            <button id="tabSprites" class="px-5 py-2 text-gray-400 hover:text-white font-medium cursor-pointer transition-colors">
+                Sprites
+            </button>
+        </div>
+        
+        <!-- Map Container -->
+        <div id="mapContainer" class="flex-grow overflow-auto p-4 flex items-center justify-center relative">
+            <p class="text-gray-600 flex flex-col items-center">
+                <svg class="w-12 h-12 mb-2 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                Map will appear here
+            </p>
+        </div>
+        
+        <!-- Sprites Container -->
+        <div id="spritesContainer" class="flex-grow overflow-auto p-6 hidden flex-wrap gap-4 items-start content-start">
+            <!-- Dynamically populated sprite thumbnails -->
+        </div>
+
+    </div>
+
+    <script>
+        // --- UI Interactions ---
+        const tabMap = document.getElementById('tabMap');
+        const tabSprites = document.getElementById('tabSprites');
+        const mapContainer = document.getElementById('mapContainer');
+        const spritesContainer = document.getElementById('spritesContainer');
+        const statsDiv = document.getElementById('stats');
+
+        tabMap.addEventListener('click', () => {
+            tabMap.className = "px-5 py-2 text-blue-400 border-b-2 border-blue-400 font-medium transition-colors";
+            tabSprites.className = "px-5 py-2 text-gray-400 hover:text-white font-medium cursor-pointer transition-colors";
+            mapContainer.classList.remove('hidden');
+            spritesContainer.classList.add('hidden');
+        });
+
+        tabSprites.addEventListener('click', () => {
+            tabSprites.className = "px-5 py-2 text-blue-400 border-b-2 border-blue-400 font-medium transition-colors";
+            tabMap.className = "px-5 py-2 text-gray-400 hover:text-white font-medium cursor-pointer transition-colors";
+            spritesContainer.classList.remove('hidden');
+            mapContainer.classList.add('hidden');
+        });
+
+        function showError(msg) {
+            mapContainer.innerHTML = `<div class="text-red-400 p-4 border border-red-500 rounded bg-red-900 bg-opacity-20 shadow-md font-mono text-sm max-w-lg">${msg}</div>`;
+            tabMap.click();
+        }
+
+        // --- Core Parser ---
+        function parseCode(text) {
+            let state = 'IDLE';
+            let currentSprite = -1;
+            let sprites = {};
+            let tiles = [];
+            let cols = 0;
+            let spriteSizes = {};
+
+            // 1. Extract Sprite Dimensions (from debug lines)
+            const debugRegex = /spritedef\s+(\d+)\s+(\d+)\s+(\d+)/g;
+            let match;
+            while ((match = debugRegex.exec(text)) !== null) {
+                spriteSizes[parseInt(match[1])] = { w: parseInt(match[2]), h: parseInt(match[3]) };
+            }
+
+            // 2. Parse File Block by Block
+            const lines = text.split('\n');
+            for (let line of lines) {
+                let t = line.trim();
+
+                // Detect map tiles block
+                if (/([a-zA-Z0-9]+)_tiles\s+byte\s*\{/i.test(t)) {
+                    state = 'TILES';
+                    continue;
+                }
+
+                // Detect sprite pixel block
+                let pMatch = t.match(/([a-zA-Z0-9]+)_(\d+)\s+byte\s*\{/i);
+                if (pMatch && !t.includes('_tiles')) {
+                    state = 'PIXELS';
+                    currentSprite = parseInt(pMatch[2]);
+                    if (!sprites[currentSprite]) sprites[currentSprite] = { pixels: [], colors: [] };
+                    continue;
+                }
+
+                // Detect sprite color palette block
+                let cMatch = t.match(/([a-zA-Z0-9]+)_(\d+)_colors\s+long\s*\{/i);
+                if (cMatch) {
+                    state = 'COLORS';
+                    currentSprite = parseInt(cMatch[2]);
+                    if (!sprites[currentSprite]) sprites[currentSprite] = { pixels: [], colors: [] };
+                    continue;
+                }
+
+                // Leave State if generic declaration is found (safety net)
+                if (/^(con|dat|pub|pri)\s+/i.test(t) && !t.match(/byte|long/i)) {
+                    state = 'IDLE';
+                }
+
+                // State Machine Accumulators
+                if (state === 'TILES') {
+                    let clean = t.replace(/[{}]/g, ''); // Strip bracket wrappers
+                    let parts = clean.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                    let validNums = parts.map(p => parseInt(p, 10)).filter(n => !isNaN(n));
+                    
+                    if (validNums.length > 0) {
+                        tiles.push(...validNums);
+                        // Determine grid width by the number of elements in the first row
+                        if (cols === 0) cols = validNums.length;
+                    }
+                } 
+                else if (state === 'PIXELS' && currentSprite >= 0) {
+                    let clean = t.replace(/[{}]/g, '');
+                    let hexes = clean.match(/\$[0-9a-fA-F]+/g); // Extract exactly the $xx hexes
+                    if (hexes) {
+                        for (let h of hexes) {
+                            sprites[currentSprite].pixels.push(parseInt(h.substring(1), 16));
+                        }
+                    }
+                } 
+                else if (state === 'COLORS' && currentSprite >= 0) {
+                    let bins = t.match(/%[01_]+/g); // Extract the %xxxxxxxx_... patterns
+                    if (bins) {
+                        for (let b of bins) {
+                            let bStr = b.substring(1).replace(/_/g, '');
+                            if (bStr.length === 32) {
+                                sprites[currentSprite].colors.push(bStr);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return { sprites, tiles, cols, spriteSizes };
+        }
+
+        // --- Core Renderers ---
+        function generateImageData(offCtx, spr, w, h) {
+            const imgData = offCtx.createImageData(w, h);
+            for (let j = 0; j < spr.pixels.length && j < w * h; j++) {
+                const colorIndex = spr.pixels[j];
+                const cBin = spr.colors[colorIndex];
+                
+                if (cBin) {
+                    // Typical Propeller mapping A_R_G_B derived from binary strings in prompt
+                    imgData.data[j*4 + 0] = parseInt(cBin.slice(8, 16), 2);  // Red
+                    imgData.data[j*4 + 1] = parseInt(cBin.slice(16, 24), 2); // Green
+                    imgData.data[j*4 + 2] = parseInt(cBin.slice(24, 32), 2); // Blue
+                    imgData.data[j*4 + 3] = parseInt(cBin.slice(0, 8), 2);   // Alpha
+                } else {
+                    imgData.data[j*4 + 3] = 0; // Fallback transparent
+                }
+            }
+            return imgData;
+        }
+
+        function renderTilemap(data) {
+            const { tiles, sprites, spriteSizes } = data;
+            let cols = data.cols;
+            mapContainer.innerHTML = '';
+            
+            if (tiles.length === 0) {
+                mapContainer.innerHTML = '<p class="text-gray-500">No tilemap array found in input. Check the sprites tab!</p>';
+                return;
+            }
+            if (cols === 0) cols = 1; // Fallback
+
+            const rows = Math.ceil(tiles.length / cols);
+            const canvas = document.createElement('canvas');
+            canvas.id = "mapCanvas";
+            canvas.className = 'checkerboard pixelated rounded';
+            
+            // Assume fixed 32x32 layout grid for the global tilemap size
+            const TILE_SIZE = 32; 
+            canvas.width = cols * TILE_SIZE;
+            canvas.height = rows * TILE_SIZE;
+            const ctx = canvas.getContext('2d');
+
+            const offCanvas = document.createElement('canvas');
+            const offCtx = offCanvas.getContext('2d');
+
+            for (let i = 0; i < tiles.length; i++) {
+                const sid = tiles[i];
+                const spr = sprites[sid];
+                if (!spr) continue;
+
+                const w = spriteSizes[sid]?.w || TILE_SIZE;
+                const h = spriteSizes[sid]?.h || TILE_SIZE;
+                
+                offCanvas.width = w;
+                offCanvas.height = h;
+                offCtx.clearRect(0, 0, w, h);
+                
+                const imgData = generateImageData(offCtx, spr, w, h);
+                offCtx.putImageData(imgData, 0, 0);
+
+                const x = (i % cols) * TILE_SIZE;
+                const y = Math.floor(i / cols) * TILE_SIZE;
+                ctx.drawImage(offCanvas, x, y);
+            }
+
+            const wrapper = document.createElement('div');
+            wrapper.className = "w-full h-full flex flex-col items-center justify-center relative";
+            
+            const btn = document.createElement('a');
+            btn.innerText = "Download Map PNG";
+            btn.className = "absolute top-2 right-2 bg-gray-800 hover:bg-gray-700 text-blue-400 border border-gray-700 transition-colors text-xs py-2 px-4 rounded cursor-pointer shadow-md";
+            btn.download = "tilemap.png";
+            btn.href = canvas.toDataURL();
+            
+            wrapper.appendChild(canvas);
+            wrapper.appendChild(btn);
+            mapContainer.appendChild(wrapper);
+        }
+
+        function renderSpritesGallery(data) {
+            const { sprites, spriteSizes } = data;
+            spritesContainer.innerHTML = '';
+            
+            let keys = Object.keys(sprites).map(Number).sort((a,b)=>a-b);
+
+            if (keys.length === 0) {
+                spritesContainer.innerHTML = '<p class="text-gray-500 w-full text-center mt-10">No sprite arrays parsed.</p>';
+                return;
+            }
+
+            for (let sid of keys) {
+                const spr = sprites[sid];
+                const w = spriteSizes[sid]?.w || 32;
+                const h = spriteSizes[sid]?.h || 32;
+
+                const wrap = document.createElement('div');
+                wrap.className = 'flex flex-col items-center bg-gray-800 border border-gray-700 p-2 rounded shadow-sm hover:border-gray-500 transition-colors';
+
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                canvas.className = 'checkerboard w-16 h-16 object-contain pixelated rounded-sm';
+
+                const ctx = canvas.getContext('2d');
+                const imgData = generateImageData(ctx, spr, w, h);
+                ctx.putImageData(imgData, 0, 0);
+
+                const label = document.createElement('span');
+                label.className = 'text-xs font-mono text-gray-400 mt-2';
+                label.innerText = `ID: ${sid}`;
+
+                wrap.appendChild(canvas);
+                wrap.appendChild(label);
+                spritesContainer.appendChild(wrap);
+            }
+        }
+
+        // --- Event Listeners ---
+        document.getElementById('renderBtn').addEventListener('click', () => {
+            const text = document.getElementById('inputBox').value;
+            
+            if (!text.trim()) {
+                showError("Please paste some Spin code first!");
+                return;
+            }
+
+            try {
+                const data = parseCode(text);
+                
+                const spriteCount = Object.keys(data.sprites).length;
+                if (spriteCount === 0) {
+                    showError("Could not find any sprites. Please check your data format.");
+                    return;
+                }
+                
+                renderTilemap(data);
+                renderSpritesGallery(data);
+                
+                // Update UI Feedback
+                statsDiv.innerHTML = `Found <span class="text-white">${spriteCount}</span> sprites.` + 
+                                     (data.tiles.length > 0 ? ` Assembled <span class="text-white">${data.cols}x${Math.ceil(data.tiles.length/data.cols)}</span> map.` : '');
+
+                // Auto-switch tabs to best view
+                if (data.tiles.length > 0) {
+                    tabMap.click();
+                } else {
+                    tabSprites.click();
+                }
+                
+            } catch (e) {
+                console.error(e);
+                showError("An error occurred while parsing the data.");
+            }
+        });
+    </script>
+</body>
+</html>

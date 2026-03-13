@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprite Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            margin: 0;
+            padding: 15px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #e94560;
+            margin-bottom: 20px;
+        }
+
+        .main {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .left-panel {
+            width: 300px;
+            background: #16213e;
+            padding: 15px;
+            border: 1px solid #333;
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            gap: 15px;
+            min-width: 0;
+        }
+
+        .section {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        input[type="file"] {
+            margin-bottom: 10px;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            background: #0f0f23;
+            border: 1px solid #444;
+            color: #fff;
+            box-sizing: border-box;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px;
+            background: #0f0f23;
+            border: 1px solid #444;
+            color: #fff;
+        }
+
+        button {
+            padding: 10px 15px;
+            background: #e94560;
+            color: white;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        button:hover {
+            background: #ff6b6b;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        .canvas-box {
+            flex: 1;
+            background: #0f0f23;
+            border: 1px solid #333;
+            padding: 10px;
+            min-height: 400px;
+            max-height: 80vh;
+            overflow: auto;
+            min-width: 0;
+        }
+
+        .canvas-box h3 {
+            margin: 0 0 10px 0;
+            color: #e94560;
+        }
+
+        #previewCanvas {
+            image-rendering: pixelated;
+            background: repeating-conic-gradient(#222 0% 25%, #333 0% 50%) 50% / 16px 16px;
+        }
+
+        .output-box {
+            width: 400px;
+            background: #0f0f23;
+            border: 1px solid #333;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            max-height: 80vh;
+        }
+
+        .output-box h3 {
+            margin: 0 0 10px 0;
+            color: #e94560;
+        }
+
+        .output-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .output-buttons button {
+            flex: 1;
+            margin: 0;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .stats span {
+            color: #e94560;
+            font-weight: bold;
+        }
+
+        #outputContent {
+            flex: 1;
+            background: #000;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: #0f0;
+        }
+
+        .move-btns {
+            display: grid;
+            grid-template-columns: repeat(3, 30px);
+            gap: 3px;
+            margin-top: 10px;
+        }
+
+        .move-btns button {
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            margin: 0;
+        }
+
+        .inline {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .inline input[type="checkbox"] {
+            width: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sprite Converter Tool</h1>
+    
+    <div class="main">
+        <div class="left-panel">
+            <div class="section">
+                <label>Upload PNG:</label>
+                <input type="file" id="fileInput" accept=".png">
+            </div>
+
+            <div class="section">
+                <label>Version:</label>
+                <select id="versionSelect">
+                    <option value="1">V1 - Global Palette</option>
+                    <option value="2">V2 - Per-Sprite Palette</option>
+                    <option value="3">V3 - Optimal Per-Sprite Palette</option>
+                </select>
+            </div>
+
+            <div class="section">
+                <label>Sprite Size:</label>
+                <select id="spriteSizeSelect">
+                    <option value="8">8x8</option>
+                    <option value="16">16x16</option>
+                    <option value="32" selected>32x32</option>
+                </select>
+            </div>
+
+            <div class="section">
+                <label>Scale: <span id="scaleValue">4</span>x</label>
+                <input type="range" id="scaleSlider" min="1" max="20" value="4" style="width:100%">
+            </div>
+
+            <div class="section inline">
+                <input type="checkbox" id="showGrid">
+                <label style="margin:0">Show Grid</label>
+            </div>
+
+            <div class="section">
+                <label>Starting Number:</label>
+                <input type="number" id="startNum" value="0" min="0">
+            </div>
+
+            <div class="section">
+                <label>Output Filename:</label>
+                <input type="text" id="outputName" placeholder="my_sprite">
+            </div>
+
+            <div class="section">
+                <label>Move Image:</label>
+                <div class="move-btns">
+                    <div></div>
+                    <button id="moveUp">↑</button>
+                    <div></div>
+                    <button id="moveLeft">←</button>
+                    <button id="refreshBtn">↻</button>
+                    <button id="moveRight">→</button>
+                    <div></div>
+                    <button id="moveDown">↓</button>
+                    <div></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <button id="convertBtn" disabled>Convert</button>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="canvas-box">
+                <h3>Preview</h3>
+                <div id="imageInfo" style="font-size:12px;margin-bottom:10px;color:#888;">No image loaded</div>
+                <canvas id="previewCanvas"></canvas>
+            </div>
+
+            <div class="output-box">
+                <h3>Output</h3>
+                <div class="output-buttons">
+                    <button id="downloadBtn" disabled>Download</button>
+                    <button id="copyBtn" disabled>Copy</button>
+                </div>
+                <div class="stats">
+                    Sprites: <span id="spriteCount">0</span> |
+                    Colors: <span id="colorCount">0</span> |
+                    Round: <span id="roundValue">0</span>
+                </div>
+                <div id="outputContent">Output will appear here...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let state = {
+            imageData: null,
+            originalImage: null,
+            paddedImageData: null,
+            target: [0, 0],
+            split: 32,
+            scale: 4,
+            showGrid: false,
+            startNum: 0,
+            outputName: '',
+            version: 1,
+            colors: [],
+            round: 5,
+            sList: [],
+            paletteData: [],
+            byteCount: 0
+        };
+
+        let generatedOutput = '';
+
+        // DOM
+        const fileInput = document.getElementById('fileInput');
+        const canvas = document.getElementById('previewCanvas');
+        const ctx = canvas.getContext('2d');
+        const convertBtn = document.getElementById('convertBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const outputContent = document.getElementById('outputContent');
+
+        // Init
+        function init() {
+            fileInput.addEventListener('change', handleFileSelect);
+
+            document.getElementById('versionSelect').addEventListener('change', (e) => {
+                state.version = parseInt(e.target.value);
+            });
+
+            document.getElementById('spriteSizeSelect').addEventListener('change', (e) => {
+                state.split = parseInt(e.target.value);
+                if (state.imageData) updatePreview();
+            });
+
+            document.getElementById('showGrid').addEventListener('change', (e) => {
+                state.showGrid = e.target.checked;
+                if (state.imageData) updatePreview();
+            });
+
+            document.getElementById('scaleSlider').addEventListener('input', (e) => {
+                state.scale = parseInt(e.target.value);
+                document.getElementById('scaleValue').textContent = state.scale;
+                if (state.imageData) updatePreview();
+            });
+
+            document.getElementById('startNum').addEventListener('input', (e) => {
+                state.startNum = parseInt(e.target.value) || 0;
+                if (state.imageData) updatePreview();
+            });
+
+            document.getElementById('outputName').addEventListener('input', (e) => {
+                state.outputName = e.target.value;
+            });
+
+            // Move buttons
+            document.getElementById('moveUp').addEventListener('click', () => moveImage(0, 1));
+            document.getElementById('moveDown').addEventListener('click', () => moveImage(0, -1));
+            document.getElementById('moveLeft').addEventListener('click', () => moveImage(1, 0));
+            document.getElementById('moveRight').addEventListener('click', () => moveImage(-1, 0));
+            document.getElementById('refreshBtn').addEventListener('click', () => {
+                if (state.imageData) updatePreview();
+            });
+
+            // Arrow keys
+            document.addEventListener('keydown', (e) => {
+                if (!state.imageData) return;
+                if (document.activeElement.tagName === 'INPUT') return;
+                switch(e.key) {
+                    case 'ArrowUp': moveImage(0, 1); e.preventDefault(); break;
+                    case 'ArrowDown': moveImage(0, -1); e.preventDefault(); break;
+                    case 'ArrowLeft': moveImage(1, 0); e.preventDefault(); break;
+                    case 'ArrowRight': moveImage(-1, 0); e.preventDefault(); break;
+                }
+            });
+
+            convertBtn.addEventListener('click', convert);
+            downloadBtn.addEventListener('click', downloadOutput);
+            copyBtn.addEventListener('click', copyOutput);
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) loadImage(file);
+        }
+
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    state.originalImage = img;
+                    state.target = [img.width, img.height];
+                    
+                    // Create padded canvas (3x size)
+                    const paddedCanvas = document.createElement('canvas');
+                    paddedCanvas.width = img.width * 3;
+                    paddedCanvas.height = img.height * 3;
+                    const paddedCtx = paddedCanvas.getContext('2d');
+                    paddedCtx.drawImage(img, img.width, img.height);
+                    state.paddedImageData = paddedCtx.getImageData(0, 0, paddedCanvas.width, paddedCanvas.height);
+                    
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = img.width;
+                    tempCanvas.height = img.height;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.drawImage(img, 0, 0);
+                    state.imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+                    
+                    canvas.style.display = 'block';
+                    convertBtn.disabled = false;
+                    document.getElementById('imageInfo').textContent = img.width + ' x ' + img.height + ' px';
+                    updatePreview();
+                    alert('Image loaded!');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function moveImage(dx, dy) {
+            if (!state.imageData) return;
+            state.target[0] += dx;
+            state.target[1] += dy;
+            updatePreview();
+        }
+
+        function cropTarget() {
+            const img = state.originalImage;
+            const width = img.width;
+            const height = img.height;
+            
+            const croppedCanvas = document.createElement('canvas');
+            croppedCanvas.width = width;
+            croppedCanvas.height = height;
+            const croppedCtx = croppedCanvas.getContext('2d');
+            
+            const paddedCanvas = document.createElement('canvas');
+            paddedCanvas.width = width * 3;
+            paddedCanvas.height = height * 3;
+            const paddedCtx = paddedCanvas.getContext('2d');
+            paddedCtx.putImageData(state.paddedImageData, 0, 0);
+            
+            croppedCtx.drawImage(paddedCanvas, state.target[0], state.target[1], width, height, 0, 0, width, height);
+            return croppedCtx.getImageData(0, 0, width, height);
+        }
+
+        function updatePreview() {
+            if (!state.imageData) return;
+            
+            const croppedData = cropTarget();
+            const img = state.originalImage;
+            const scale = state.scale;
+            
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            
+            ctx.imageSmoothingEnabled = false;
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = img.width;
+            tempCanvas.height = img.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.putImageData(croppedData, 0, 0);
+            ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+            
+            // Grid
+            if (state.showGrid) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                for (let i = 0; i < img.width; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * scale, 0);
+                    ctx.lineTo(i * scale, canvas.height);
+                    ctx.stroke();
+                }
+                for (let j = 0; j < img.height; j++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, j * scale);
+                    ctx.lineTo(canvas.width, j * scale);
+                    ctx.stroke();
+                }
+            }
+            
+            // Sprite grid & numbers
+            const split = state.split;
+            ctx.strokeStyle = '#0f0';
+            ctx.lineWidth = 2;
+            
+            const cols = Math.ceil(img.width / split);
+            const rows = Math.ceil(img.height / split);
+            
+            for (let i = 0; i <= cols; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * split * scale, 0);
+                ctx.lineTo(i * split * scale, rows * split * scale);
+                ctx.stroke();
+            }
+            for (let j = 0; j <= rows; j++) {
+                ctx.beginPath();
+                ctx.moveTo(0, j * split * scale);
+                ctx.lineTo(cols * split * scale, j * split * scale);
+                ctx.stroke();
+            }
+            
+            ctx.fillStyle = '#f00';
+            ctx.font = 'bold 12px monospace';
+            let counter = state.startNum;
+            for (let j = 0; j < rows; j++) {
+                for (let i = 0; i < cols; i++) {
+                    ctx.fillText(counter.toString(), i * split * scale + 3, j * split * scale + 13);
+                    counter++;
+                }
+            }
+        }
+
+        function toBinary(num) {
+            return num.toString(2).padStart(8, '0');
+        }
+
+        // V1: Global Palette
+        async function paletteMakerV1(imageData) {
+            let roundValue = -4;
+            let colors = [];
+            let iteration = 0;
+            
+            while (colors.length >= 70 || colors.length === 0) {
+                await new Promise(r => setTimeout(r, 0)); // Yield to UI
+                colors = ['00000000_00000000_00000000_00000000'];
+                iteration++;
+                if (iteration === 2) roundValue = 0;
+                roundValue += 5;
+                
+                for (let i = 0; i < imageData.height; i++) {
+                    for (let j = 0; j < imageData.width; j++) {
+                        const idx = (i * imageData.width + j) * 4;
+                        const pix = [imageData.data[idx], imageData.data[idx + 1], imageData.data[idx + 2], imageData.data[idx + 3]];
+                        
+                        const color = pix.map(v => v === 255 ? 255 : v - (v % roundValue));
+                        const binary = toBinary(color[3]) + '_' + toBinary(color[0]) + '_' + toBinary(color[1]) + '_' + toBinary(color[2]);
+                        
+                        if (color[3] !== 0 && !colors.includes(binary)) {
+                            colors.push(binary);
+                        }
+                    }
+                }
+            }
+            return { colors, round: roundValue };
+        }
+
+        // V2: Per-Sprite Palette
+        async function paletteMakerV2(subImageData, width, height) {
+            let roundValue = -4;
+            let colors = [];
+            let iteration = 0;
+            
+            while (colors.length >= 70 || colors.length === 0) {
+                await new Promise(r => setTimeout(r, 0)); // Yield to UI
+                colors = [[0, 0, 0, 0]];
+                iteration++;
+                if (iteration === 2) roundValue = 0;
+                roundValue += 5;
+                
+                for (let i = 0; i < height; i++) {
+                    for (let j = 0; j < width; j++) {
+                        const pix = subImageData[i][j];
+                        const color = pix.map(v => v === 255 ? 255 : v - (v % roundValue));
+                        
+                        if (color[3] !== 0) {
+                            const exists = colors.some(c => c[0] === color[0] && c[1] === color[1] && c[2] === color[2] && c[3] === color[3]);
+                            if (!exists) colors.push(color);
+                        }
+                    }
+                }
+            }
+            
+            const binaryColors = colors.map(color => [toBinary(color[3]), toBinary(color[0]), toBinary(color[1]), toBinary(color[2])]);
+            return { colors: binaryColors, round: roundValue, colorCount: colors.length };
+        }
+
+        // V3: Optimal Per-Sprite Palette
+        async function paletteMakerV3(subImageData, width, height) {
+            let roundStep = -4;
+            let colors = [];
+            let iteration = 0;
+            
+            while (true) {
+                await new Promise(r => setTimeout(r, 0)); // Yield to UI
+                iteration++;
+                if (iteration === 2) roundStep = 0;
+                roundStep += 5;
+                
+                colors = [[0, 0, 0, 0]]; // Default transparency
+                
+                for (let i = 0; i < height; i++) {
+                    for (let j = 0; j < width; j++) {
+                        const pix = subImageData[i][j];
+                        if (pix[3] === 0) continue; // Skip initially transparent 
+                        
+                        const color = [0, 0, 0, 0];
+                        for (let a = 0; a < 4; a++) {
+                            if (pix[a] === 255) {
+                                color[a] = 255;
+                            } else {
+                                if (roundStep > 0) {
+                                    let rounded = Math.floor((pix[a] + Math.floor(roundStep / 2)) / roundStep) * roundStep;
+                                    color[a] = Math.max(0, Math.min(255, rounded));
+                                } else {
+                                    color[a] = pix[a];
+                                }
+                            }
+                        }
+                        
+                        if (color[3] !== 0) {
+                            const exists = colors.some(c => c[0] === color[0] && c[1] === color[1] && c[2] === color[2] && c[3] === color[3]);
+                            if (!exists) colors.push(color);
+                        }
+                    }
+                }
+                
+                if (colors.length > 0 && colors.length <= 64) {
+                    break;
+                }
+            }
+            
+            const binaryColors = colors.map(color => [toBinary(color[3]), toBinary(color[0]), toBinary(color[1]), toBinary(color[2])]);
+            return { colors: binaryColors, round: roundStep, colorCount: colors.length };
+        }
+
+        async function convert() {
+            if (!state.imageData || !state.outputName) {
+                alert('Please upload an image and enter a filename');
+                return;
+            }
+            
+            convertBtn.disabled = true;
+            const originalBtnText = convertBtn.textContent;
+            convertBtn.textContent = 'Converting...';
+            
+            // Initial yield to allow UI to update the button
+            await new Promise(r => setTimeout(r, 10));
+            
+            try {
+                if (state.version === 1) await convertV1();
+                else if (state.version === 2) await convertV2();
+                else await convertV3();
+                
+                downloadBtn.disabled = false;
+                copyBtn.disabled = false;
+                alert('Done!');
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                convertBtn.textContent = originalBtnText;
+                convertBtn.disabled = false;
+            }
+        }
+
+        async function convertV1() {
+            const croppedData = cropTarget();
+            const img = state.originalImage;
+            const split = state.split;
+            const textname = state.outputName;
+            const startnum = state.startNum;
+            
+            // Generate global palette (same as Python palletteMaker)
+            const { colors, round } = await paletteMakerV1(croppedData);
+            state.colors = colors;
+            state.round = round;
+            
+            let num = startnum - 1;
+            let bytecount = 0;
+            let layout = '}';
+            const sList = [];
+            
+            const cols = Math.ceil(img.width / split);
+            const rows = Math.ceil(img.height / split);
+            const arr = Array(rows).fill(null).map(() => Array(cols).fill(null));
+            
+            // Process each sub-sprite (same loop structure as Python byteMaker)
+            for (let yidx = 0; yidx < rows; yidx++) {
+                if (yidx % 5 === 0) await new Promise(r => setTimeout(r, 0)); // Yield to prevent UI freeze
+                for (let xidx = 0; xidx < cols; xidx++) {
+                    num++;
+                    let s = '';
+                    
+                    // Process pixels in sub-sprite
+                    for (let i = yidx * split; i < (yidx + 1) * split; i++) {
+                        for (let j = xidx * split; j < (xidx + 1) * split; j++) {
+                            let color = [0, 0, 0, 0];
+                            
+                            if (i < img.height && j < img.width) {
+                                const idx = (i * croppedData.width + j) * 4;
+                                const pix = [
+                                    croppedData.data[idx],
+                                    croppedData.data[idx + 1],
+                                    croppedData.data[idx + 2],
+                                    croppedData.data[idx + 3]
+                                ];
+                                
+                                color = pix.map(v => {
+                                    if (v === 255) return 255;
+                                    return v - (v % round);
+                                });
+                            }
+                            
+                            let binary = toBinary(color[3]) + '_' + toBinary(color[0]) + '_' + 
+                                        toBinary(color[1]) + '_' + toBinary(color[2]);
+                            
+                            if (color[3] === 0) {
+                                binary = '00000000_00000000_00000000_00000000';
+                            }
+                            
+                            const colorIdx = colors.indexOf(binary);
+                            
+                            // Brace at start of row
+                            if (j === xidx * split) s += '}';
+                            
+                            // Hex index with leading zero if needed
+                            if (colorIdx < 16) {
+                                s += '$0' + colorIdx.toString(16) + ',';
+                            } else {
+                                s += '$' + colorIdx.toString(16) + ',';
+                            }
+                            
+                            // End of row
+                            if (j === (xidx + 1) * split - 1) {
+                                if (i === (yidx + 1) * split - 1) {
+                                    s = s.slice(0, -1); // Remove last comma
+                                }
+                                s += '{\n';
+                            }
+                        }
+                    }
+                    s += '}\n';
+                    
+                    // Check if sprite has non-transparent content
+                    const hasContent = /[1-9a-f]/.test(s);
+                    
+                    if (hasContent) {
+                        const existingIdx = sList.indexOf(s);
+                        if (existingIdx >= 0) {
+                            // Duplicate sprite
+                            layout += (existingIdx + startnum) + ',\t';
+                            arr[yidx][xidx] = existingIdx + startnum;
+                            num--;
+                        } else {
+                            // New sprite
+                            bytecount++;
+                            sList.push(s);
+                            layout += (sList.length - 1 + startnum) + ',\t';
+                            arr[yidx][xidx] = sList.length - 1 + startnum;
+                        }
+                        
+                        if (yidx === rows - 1 && xidx === cols - 1) {
+                            layout = layout.slice(0, -2);
+                        }
+                    } else {
+                        layout += '--\t';
+                    }
+                }
+                layout += '{\n}';
+            }
+            
+            // Generate output text (same format as Python)
+            let bytedata = "con '" + textname + " sprites\ndat ";
+            let declaration = "pub load_" + textname + "_sprites()   'call this method from main to load sprites\n";
+            
+            for (let i = 0; i < sList.length; i++) {
+                bytedata += textname + '_' + (i + startnum) + ' byte {\n';
+                bytedata += sList[i];
+                declaration += "\tdebug(`screen spritedef " + (i + startnum) + " " + split + " " + split + 
+                              " `uhex_byte_array_(@" + textname + '_' + (i + startnum) + ", " + (split * split) + 
+                              ") `uhex_long_array_(@" + textname + ", " + colors.length + "))\n";
+            }
+            
+            // Long data for colors
+            let longdata = "con '" + textname + " sprite colors\ndat\n";
+            longdata += textname + " long {\n";
+            
+            for (let i = 0; i < colors.length; i++) {
+                if (i === colors.length - 1) {
+                    longdata += '}%' + colors[i] + "   'index=" + i.toString(16) + '  -  ' + i + '\n';
+                } else {
+                    longdata += '}%' + colors[i] + ",{ 'index=" + i.toString(16) + '  -  ' + i + '\n';
+                }
+            }
+            
+            const tileLayout = "dat " + textname + "_tiles byte {\n" + layout.slice(0, -3) + "\n";
+            const finaltext = declaration + "\n" + tileLayout + "\n" + bytedata + longdata;
+            
+            // Store and display
+            generatedOutput = finaltext;
+            state.sList = sList;
+            state.byteCount = bytecount;
+            state.layoutArr = arr;
+            
+            outputContent.textContent = finaltext;
+            document.getElementById('spriteCount').textContent = bytecount;
+            document.getElementById('colorCount').textContent = colors.length;
+            document.getElementById('roundValue').textContent = round;
+        }
+
+        async function convertV2() {
+            const croppedData = cropTarget();
+            const img = state.originalImage;
+            const split = state.split;
+            const textname = state.outputName;
+            const startnum = state.startNum;
+            
+            let num = startnum - 1;
+            let bytecount = 0;
+            let layout = '}';
+            const sList = [];
+            const paletteList = [];
+            const paletteData = [];
+            const paletteLengths = []; // Track actual palette lengths
+            
+            const cols = Math.ceil(img.width / split);
+            const rows = Math.ceil(img.height / split);
+            const arr = Array(rows).fill(null).map(() => Array(cols).fill(null));
+            
+            let totalColors = 0;
+            let lastRound = 5;
+            
+            for (let yidx = 0; yidx < rows; yidx++) {
+                if (yidx % 5 === 0) await new Promise(r => setTimeout(r, 0)); // Yield to prevent UI freeze
+                for (let xidx = 0; xidx < cols; xidx++) {
+                    num++;
+                    
+                    // Extract sub-image data as 2D array (same as Python numpy slicing)
+                    const subImageData = [];
+                    for (let i = yidx * split; i < (yidx + 1) * split; i++) {
+                        const row = [];
+                        for (let j = xidx * split; j < (xidx + 1) * split; j++) {
+                            if (i < img.height && j < img.width) {
+                                const idx = (i * croppedData.width + j) * 4;
+                                row.push([
+                                    croppedData.data[idx],     // R
+                                    croppedData.data[idx + 1], // G
+                                    croppedData.data[idx + 2], // B
+                                    croppedData.data[idx + 3]  // A
+                                ]);
+                            } else {
+                                row.push([0, 0, 0, 0]);
+                            }
+                        }
+                        subImageData.push(row);
+                    }
+                    
+                    // Skip if sub-image doesn't match split size
+                    if (subImageData.length !== split || subImageData[0].length !== split) {
+                        continue;
+                    }
+                    
+                    // Generate per-sprite palette
+                    const { colors: palette, round, colorCount } = await paletteMakerV2(subImageData, split, split);
+                    lastRound = round;
+                    
+                    if (palette.length > 0) {
+                        paletteList.push(palette);
+                        paletteLengths.push(colorCount);
+                        totalColors += colorCount;
+                    }
+                    
+                    // Create color lookup (same as Python: colors = {tuple(...): idx for idx, color in enumerate(palette)})
+                    const colorLookup = {};
+                    palette.forEach((color, idx) => {
+                        const key = color.join('_');
+                        colorLookup[key] = idx;
+                    });
+                    
+                    let s = '';
+                    
+                    for (let i = yidx * split; i < (yidx + 1) * split; i++) {
+                        for (let j = xidx * split; j < (xidx + 1) * split; j++) {
+                            let color = [0, 0, 0, 0];
+                            
+                            if (i < img.height && j < img.width) {
+                                const idx = (i * croppedData.width + j) * 4;
+                                const pix = [
+                                    croppedData.data[idx],
+                                    croppedData.data[idx + 1],
+                                    croppedData.data[idx + 2],
+                                    croppedData.data[idx + 3]
+                                ];
+                                
+                                color = pix.map(v => {
+                                    if (v === 255) return 255;
+                                    return v - (v % round);
+                                });
+                            }
+                            
+                            let binary = [toBinary(color[3]), toBinary(color[0]), toBinary(color[1]), toBinary(color[2])];
+                            
+                            if (color[3] === 0) {
+                                binary = ['00000000', '00000000', '00000000', '00000000'];
+                            }
+                            
+                            const key = binary.join('_');
+                            const colorIdx = colorLookup[key] || 0;
+                            
+                            if (j === xidx * split) s += '}';
+                            
+                            if (colorIdx < 16) {
+                                s += '$0' + colorIdx.toString(16) + ',';
+                            } else {
+                                s += '$' + colorIdx.toString(16) + ',';
+                            }
+                            
+                            if (j === (xidx + 1) * split - 1) {
+                                if (i === (yidx + 1) * split - 1) {
+                                    s = s.slice(0, -1);
+                                }
+                                s += '{\n';
+                            }
+                        }
+                    }
+                    s += '}\n';
+                    
+                    const hasContent = /[1-9a-f]/.test(s);
+                    
+                    if (hasContent) {
+                        const existingIdx = sList.indexOf(s);
+                        if (existingIdx >= 0) {
+                            layout += (existingIdx + startnum) + ',\t';
+                            arr[yidx][xidx] = existingIdx + startnum;
+                            num--;
+                        } else {
+                            bytecount++;
+                            sList.push(s);
+                            layout += (sList.length - 1 + startnum) + ',\t';
+                            arr[yidx][xidx] = sList.length - 1 + startnum;
+                        }
+                        
+                        if (yidx === rows - 1 && xidx === cols - 1) {
+                            layout = layout.slice(0, -2);
+                        }
+                    } else {
+                        layout += '--\t';
+                    }
+                }
+                layout += '{\n}';
+            }
+            
+            // Generate palette data strings (same format as Python)
+            for (let p = 0; p < paletteList.length; p++) {
+                const palette = paletteList[p];
+                let paletteStr = '';
+                for (let idx = 0; idx < palette.length; idx++) {
+                    const color = palette[idx];
+                    if (idx < palette.length - 1) {
+                        paletteStr += '}%' + color.join('_') + ",{ 'index=0x" + idx.toString(16) + '  -  ' + idx + '\n';
+                    } else {
+                        paletteStr += '}%' + color.join('_') + "{ 'index=0x" + idx.toString(16) + '  -  ' + idx + '\n';
+                    }
+                }
+                paletteStr += '}';
+                paletteData.push(paletteStr);
+            }
+            
+            // Generate output
+            let bytedata = "con '" + textname + " sprites\ndat ";
+            let declaration = "pub load_" + textname + "_sprites()   'call this method from main to load sprites\n";
+            
+            for (let i = 0; i < sList.length; i++) {
+                bytedata += textname + '_' + (i + startnum) + ' byte {\n';
+                bytedata += sList[i];
+                bytedata += textname + '_' + (i + startnum) + '_colors long {\n';
+                bytedata += paletteData[i] + '\n\n';
+                
+                // Use tracked palette length (fixed from original bug)
+                const paletteLen = paletteLengths[i];
+                declaration += "\tdebug(`screen spritedef " + (i + startnum) + " " + split + " " + split + 
+                              " `uhex_byte_array_(@" + textname + '_' + (i + startnum) + ", " + (split * split) + 
+                              ") `uhex_long_array_(@" + textname + '_' + (i + startnum) + '_colors, ' + paletteLen + "))\n";
+            }
+            
+            const tileLayout = "dat " + textname + "_tiles byte {\n" + layout.slice(0, -3) + "\n";
+            const finaltext = declaration + "\n" + tileLayout + "\n" + bytedata;
+            
+            // Store and display
+            generatedOutput = finaltext;
+            state.sList = sList;
+            state.paletteData = paletteData;
+            state.byteCount = bytecount;
+            state.layoutArr = arr;
+            state.round = lastRound;
+            
+            outputContent.textContent = finaltext;
+            document.getElementById('spriteCount').textContent = bytecount;
+            document.getElementById('colorCount').textContent = totalColors;
+            document.getElementById('roundValue').textContent = lastRound;
+        }
+
+        async function convertV3() {
+            const croppedData = cropTarget();
+            const img = state.originalImage;
+            const split = state.split;
+            const textname = state.outputName;
+            const startnum = state.startNum;
+            
+            let num = startnum - 1;
+            let bytecount = 0;
+            let layout = '}';
+            const sList = [];
+            const paletteList = [];
+            const paletteData = [];
+            const paletteLengths = [];
+            
+            const cols = Math.ceil(img.width / split);
+            const rows = Math.ceil(img.height / split);
+            const arr = Array(rows).fill(null).map(() => Array(cols).fill(null));
+            
+            let totalColors = 0;
+            let lastRoundStep = 0;
+            
+            for (let yidx = 0; yidx < rows; yidx++) {
+                if (yidx % 5 === 0) await new Promise(r => setTimeout(r, 0)); // Yield to prevent UI freeze
+                for (let xidx = 0; xidx < cols; xidx++) {
+                    num++;
+                    
+                    const subImageData = [];
+                    for (let i = yidx * split; i < (yidx + 1) * split; i++) {
+                        const row = [];
+                        for (let j = xidx * split; j < (xidx + 1) * split; j++) {
+                            if (i < img.height && j < img.width) {
+                                const idx = (i * croppedData.width + j) * 4;
+                                row.push([
+                                    croppedData.data[idx],
+                                    croppedData.data[idx + 1],
+                                    croppedData.data[idx + 2],
+                                    croppedData.data[idx + 3]
+                                ]);
+                            } else {
+                                row.push([0, 0, 0, 0]);
+                            }
+                        }
+                        subImageData.push(row);
+                    }
+                    
+                    if (subImageData.length !== split || subImageData[0].length !== split) {
+                        continue;
+                    }
+                    
+                    const { colors: palette, round: roundStep, colorCount } = await paletteMakerV3(subImageData, split, split);
+                    lastRoundStep = roundStep;
+                    
+                    const colorLookup = {};
+                    palette.forEach((color, idx) => {
+                        const key = color.join('_');
+                        colorLookup[key] = idx;
+                    });
+                    
+                    let s = '';
+                    
+                    for (let i = 0; i < split; i++) {
+                        for (let j = 0; j < split; j++) {
+                            const pix = subImageData[i][j];
+                            let color = [0, 0, 0, 0];
+                            
+                            if (pix[3] !== 0) {
+                                for (let a = 0; a < 4; a++) {
+                                    if (pix[a] === 255) {
+                                        color[a] = 255;
+                                    } else {
+                                        if (roundStep !== 0) {
+                                            let rounded = Math.floor((pix[a] + Math.floor(roundStep / 2)) / roundStep) * roundStep;
+                                            color[a] = Math.max(0, Math.min(255, rounded));
+                                        } else {
+                                            color[a] = pix[a];
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            let binary = [toBinary(color[3]), toBinary(color[0]), toBinary(color[1]), toBinary(color[2])];
+                            if (color[3] === 0) {
+                                binary = ['00000000', '00000000', '00000000', '00000000'];
+                            }
+                            
+                            const key = binary.join('_');
+                            const colorIdx = colorLookup[key] || 0;
+                            
+                            if (j === 0) s += '}';
+                            
+                            s += '$' + colorIdx.toString(16).padStart(2, '0') + ',';
+                            
+                            if (j === split - 1) {
+                                if (i === split - 1) {
+                                    s = s.slice(0, -1);
+                                }
+                                s += '{\n';
+                            }
+                        }
+                    }
+                    s += '}\n';
+                    
+                    const hasContent = /[1-9a-f]/.test(s);
+                    
+                    if (hasContent) {
+                        const existingIdx = sList.indexOf(s);
+                        if (existingIdx >= 0) {
+                            layout += (existingIdx + startnum) + ',\t';
+                            arr[yidx][xidx] = existingIdx + startnum;
+                            num--;
+                        } else {
+                            bytecount++;
+                            sList.push(s);
+                            paletteList.push(palette);
+                            paletteLengths.push(colorCount);
+                            totalColors += colorCount;
+                            layout += (sList.length - 1 + startnum) + ',\t';
+                            arr[yidx][xidx] = sList.length - 1 + startnum;
+                        }
+                        
+                        if (yidx === rows - 1 && xidx === cols - 1) {
+                            layout = layout.slice(0, -2);
+                        }
+                    } else {
+                        layout += '--\t';
+                    }
+                }
+                layout += '{\n}';
+            }
+            
+            for (let p = 0; p < paletteList.length; p++) {
+                const palette = paletteList[p];
+                let paletteStr = '';
+                for (let idx = 0; idx < palette.length; idx++) {
+                    const color = palette[idx];
+                    if (idx < palette.length - 1) {
+                        paletteStr += '}%' + color.join('_') + ",{ 'index=0x" + idx.toString(16) + '  -  ' + idx + '\n';
+                    } else {
+                        paletteStr += '}%' + color.join('_') + "{ 'index=0x" + idx.toString(16) + '  -  ' + idx + '\n';
+                    }
+                }
+                paletteStr += '}';
+                paletteData.push(paletteStr);
+            }
+            
+            let bytedata = "con '" + textname + " sprites\ndat ";
+            let declaration = "pub load_" + textname + "_sprites()   'call this method from main to load sprites\n";
+            
+            for (let i = 0; i < sList.length; i++) {
+                bytedata += textname + '_' + (i + startnum) + ' byte {\n';
+                bytedata += sList[i];
+                bytedata += textname + '_' + (i + startnum) + '_colors long {\n';
+                bytedata += paletteData[i] + '\n\n';
+                
+                const paletteLen = paletteLengths[i];
+                declaration += "\tdebug(`screen spritedef " + (i + startnum) + " " + split + " " + split + 
+                              " `uhex_byte_array_(@" + textname + '_' + (i + startnum) + ", " + (split * split) + 
+                              ") `uhex_long_array_(@" + textname + '_' + (i + startnum) + '_colors, ' + paletteLen + "))\n";
+            }
+            
+            const tileLayout = "dat " + textname + "_tiles byte {\n" + layout.slice(0, -3) + "\n";
+            const finaltext = declaration + "\n" + tileLayout + "\n" + bytedata;
+            
+            generatedOutput = finaltext;
+            state.sList = sList;
+            state.paletteData = paletteData;
+            state.byteCount = bytecount;
+            state.layoutArr = arr;
+            state.round = lastRoundStep;
+            
+            outputContent.textContent = finaltext;
+            document.getElementById('spriteCount').textContent = bytecount;
+            document.getElementById('colorCount').textContent = totalColors;
+            document.getElementById('roundValue').textContent = lastRoundStep;
+        }
+
+        // Output
+        function downloadOutput() {
+            if (!generatedOutput) return;
+            const blob = new Blob([generatedOutput], { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = state.outputName + '.txt';
+            a.click();
+        }
+
+        function copyOutput() {
+            if (!generatedOutput) return;
+            navigator.clipboard.writeText(generatedOutput).then(() => alert('Copied!'));
+        }
+
+        init();
+    </script>
+</body>
+</html>
+ 
