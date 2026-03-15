@@ -106,7 +106,7 @@ def byteMaker():
         return 'break'
     # -----------------------------------------------------------------------------------
     # generate sprite byte data (auto split sprites into 16x16 or 32x32------------------
-    num = startnum-1
+    num = startnum-1 
     bytecount = 0
     xidx = 0
     yidx = 0

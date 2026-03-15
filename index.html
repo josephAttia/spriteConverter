@@ -6,17 +6,19 @@
     <title>Sprite Converter</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background: #1a1a2e;
-            color: #eee;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #ffffff;
+            color: #000000;
             margin: 0;
             padding: 15px;
         }
 
         h1 {
             text-align: center;
-            color: #e94560;
+            color: #000000;
             margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
 
         .main {
@@ -28,9 +30,10 @@
 
         .left-panel {
             width: 300px;
-            background: #16213e;
+            background: #ffffff;
             padding: 15px;
-            border: 1px solid #333;
+            border: 2px solid #000000;
+            box-shadow: 4px 4px 0px #000000;
         }
 
         .right-panel {
@@ -48,6 +51,7 @@
             display: block;
             margin-bottom: 5px;
             font-size: 14px;
+            font-weight: bold;
         }
 
         input[type="file"] {
@@ -58,43 +62,51 @@
         input[type="number"] {
             width: 100%;
             padding: 8px;
-            background: #0f0f23;
-            border: 1px solid #444;
-            color: #fff;
+            background: #ffffff;
+            border: 2px solid #000000;
+            color: #000000;
             box-sizing: border-box;
+            font-family: inherit;
         }
 
         select {
             width: 100%;
             padding: 8px;
-            background: #0f0f23;
-            border: 1px solid #444;
-            color: #fff;
+            background: #ffffff;
+            border: 2px solid #000000;
+            color: #000000;
+            font-family: inherit;
         }
 
         button {
             padding: 10px 15px;
-            background: #e94560;
-            color: white;
-            border: none;
+            background: #000000;
+            color: #ffffff;
+            border: 2px solid #000000;
             cursor: pointer;
             width: 100%;
             margin-top: 5px;
+            font-weight: bold;
+            text-transform: uppercase;
         }
 
         button:hover {
-            background: #ff6b6b;
+            background: #ffffff;
+            color: #000000;
         }
 
         button:disabled {
-            background: #555;
+            background: #cccccc;
+            color: #666666;
+            border-color: #999999;
             cursor: not-allowed;
         }
 
         .canvas-box {
             flex: 1;
-            background: #0f0f23;
-            border: 1px solid #333;
+            background: #ffffff;
+            border: 2px solid #000000;
+            box-shadow: 4px 4px 0px #000000;
             padding: 10px;
             min-height: 400px;
             max-height: 80vh;
@@ -104,18 +116,22 @@
 
         .canvas-box h3 {
             margin: 0 0 10px 0;
-            color: #e94560;
+            color: #000000;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 5px;
         }
 
         #previewCanvas {
             image-rendering: pixelated;
-            background: repeating-conic-gradient(#222 0% 25%, #333 0% 50%) 50% / 16px 16px;
+            background: Repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+            border: 1px solid #000;
         }
 
         .output-box {
             width: 400px;
-            background: #0f0f23;
-            border: 1px solid #333;
+            background: #ffffff;
+            border: 2px solid #000000;
+            box-shadow: 4px 4px 0px #000000;
             padding: 10px;
             display: flex;
             flex-direction: column;
@@ -124,7 +140,9 @@
 
         .output-box h3 {
             margin: 0 0 10px 0;
-            color: #e94560;
+            color: #000000;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 5px;
         }
 
         .output-buttons {
@@ -146,20 +164,21 @@
         }
 
         .stats span {
-            color: #e94560;
+            color: #000000;
             font-weight: bold;
         }
 
         #outputContent {
             flex: 1;
-            background: #000;
+            background: #f9f9f9;
             padding: 10px;
-            font-family: monospace;
+            font-family: 'Courier New', Courier, monospace;
             font-size: 12px;
             overflow: auto;
             white-space: pre-wrap;
             word-break: break-all;
-            color: #0f0;
+            color: #000000;
+            border: 1px solid #000000;
         }
 
         .move-btns {
@@ -202,7 +221,7 @@
                 <select id="versionSelect">
                     <option value="1">V1 - Global Palette</option>
                     <option value="2">V2 - Per-Sprite Palette</option>
-                    <option value="3">V3 - Optimal Per-Sprite Palette</option>
+                    <option value="3" selected>V3 - Optimal Per-Sprite Palette</option>
                 </select>
             </div>
 
@@ -217,7 +236,7 @@
 
             <div class="section">
                 <label>Scale: <span id="scaleValue">4</span>x</label>
-                <input type="range" id="scaleSlider" min="1" max="20" value="4" style="width:100%">
+                <input type="range" id="scaleSlider" min="0.1" max="20" step="0.1" value="4" style="width:100%">
             </div>
 
             <div class="section inline">
@@ -290,7 +309,7 @@
             showGrid: false,
             startNum: 0,
             outputName: '',
-            version: 1,
+            version: 3,
             colors: [],
             round: 5,
             sList: [],
@@ -311,6 +330,9 @@
 
         // Init
         function init() {
+            // make sure state mirrors HTML defaults
+            state.version = 3;
+
             fileInput.addEventListener('change', handleFileSelect);
 
             document.getElementById('versionSelect').addEventListener('change', (e) => {
@@ -328,7 +350,7 @@
             });
 
             document.getElementById('scaleSlider').addEventListener('input', (e) => {
-                state.scale = parseInt(e.target.value);
+                state.scale = parseFloat(e.target.value);
                 document.getElementById('scaleValue').textContent = state.scale;
                 if (state.imageData) updatePreview();
             });
@@ -400,7 +422,6 @@
                     convertBtn.disabled = false;
                     document.getElementById('imageInfo').textContent = img.width + ' x ' + img.height + ' px';
                     updatePreview();
-                    alert('Image loaded!');
                 };
                 img.src = e.target.result;
             };
@@ -471,7 +492,7 @@
             
             // Sprite grid & numbers
             const split = state.split;
-            ctx.strokeStyle = '#0f0';
+            ctx.strokeStyle = '#000';
             ctx.lineWidth = 2;
             
             const cols = Math.ceil(img.width / split);
@@ -490,7 +511,7 @@
                 ctx.stroke();
             }
             
-            ctx.fillStyle = '#f00';
+            ctx.fillStyle = '#000';
             ctx.font = 'bold 12px monospace';
             let counter = state.startNum;
             for (let j = 0; j < rows; j++) {
@@ -634,7 +655,7 @@
                 
                 downloadBtn.disabled = false;
                 copyBtn.disabled = false;
-                alert('Done!');
+        
             } catch (error) {
                 alert('Error: ' + error.message);
             } finally {
@@ -1169,7 +1190,7 @@
 
         function copyOutput() {
             if (!generatedOutput) return;
-            navigator.clipboard.writeText(generatedOutput).then(() => alert('Copied!'));
+            navigator.clipboard.writeText(generatedOutput).then(() => console.log('Output copied to clipboard')).catch(err => console.error('Could not copy: ', err));
         }
 
         init();
