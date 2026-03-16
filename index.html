@@ -230,7 +230,11 @@
                 <input type="file" id="fileInput" accept=".png">
                 <div class="inline" style="margin-top: 5px;">
                     <input type="checkbox" id="forceResize">
-                    <label style="margin:0; font-size:12px;">Resize to 384x310</label>
+                    <label style="margin:0; font-size:12px;">Resize to 384x320</label>
+                </div>
+                <div class="inline" style="margin-top: 5px;">
+                    <input type="checkbox" id="isSpriteSheet">
+                    <label style="margin:0; font-size:12px;">Sprite Sheet Mode (Select Blocks to Export)</label>
                 </div>
             </div>
 
@@ -250,6 +254,15 @@
                     <option value="16">16x16</option>
                     <option value="32" selected>32x32</option>
                 </select>
+            </div>
+
+            <div class="section">
+                <label>Remove Background Color:</label>
+                <div class="inline" style="display:flex;">
+                    <button id="pickColorBtn" style="flex:1; margin-right:5px;">Pick Color</button>
+                    <button id="clearColorBtn" style="flex:1;" disabled>Clear Color</button>
+                </div>
+                <div id="pickedColorDisplay" style="margin-top:5px; font-size:12px; color:#f1faee;">No color selected</div>
             </div>
 
             <div class="section">
@@ -288,6 +301,7 @@
             </div>
 
             <div class="section">
+                <button id="clearSelectionBtn" style="background:#e63946; margin-bottom:10px; display:none;">Clear Selection</button>
                 <button id="convertBtn" disabled>Convert</button>
             </div>
         </div>
@@ -320,6 +334,8 @@
         let state = {
             currentFile: null,
             forceResize: false,
+            isSpriteSheet: false,
+            selectedSprites: new Set(),
             imageData: null,
             originalImage: null,
             paddedImageData: null,
@@ -335,7 +351,9 @@
             sList: [],
             paletteData: [],
             byteCount: 0,
-            layoutArr: null
+            layoutArr: null,
+            isColorPicking: false,
+            transparentColor: null
         };
 
         let generatedOutput = '';
@@ -345,6 +363,10 @@
         const canvas = document.getElementById('previewCanvas');
         const ctx = canvas.getContext('2d');
         const convertBtn = document.getElementById('convertBtn');
+        const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+        const pickColorBtn = document.getElementById('pickColorBtn');
+        const clearColorBtn = document.getElementById('clearColorBtn');
+        const pickedColorDisplay = document.getElementById('pickedColorDisplay');
         const downloadBtn = document.getElementById('downloadBtn');
         const copyBtn = document.getElementById('copyBtn');
         const outputContent = document.getElementById('outputContent');
@@ -359,6 +381,95 @@
             document.getElementById('forceResize').addEventListener('change', (e) => {
                 state.forceResize = e.target.checked;
                 if (state.currentFile) loadImage(state.currentFile);
+            });
+
+            document.getElementById('isSpriteSheet').addEventListener('change', (e) => {
+                state.isSpriteSheet = e.target.checked;
+                state.selectedSprites.clear();
+                canvas.style.cursor = state.isSpriteSheet ? 'pointer' : 'default';
+                clearSelectionBtn.style.display = state.isSpriteSheet ? 'block' : 'none';
+                clearOutput();
+                updatePreview();
+            });
+
+            clearSelectionBtn.addEventListener('click', () => {
+                state.selectedSprites.clear();
+                clearOutput();
+                updatePreview();
+            });
+
+            pickColorBtn.addEventListener('click', () => {
+                state.isColorPicking = !state.isColorPicking;
+                if (state.isColorPicking) {
+                    pickColorBtn.textContent = 'Cancel Pick';
+                    canvas.style.cursor = 'crosshair';
+                } else {
+                    pickColorBtn.textContent = 'Pick Color';
+                    canvas.style.cursor = state.isSpriteSheet ? 'pointer' : 'default';
+                }
+                updatePreview(); // Show/hide transparency
+            });
+
+            clearColorBtn.addEventListener('click', () => {
+                state.transparentColor = null;
+                pickedColorDisplay.textContent = 'No color selected';
+                clearColorBtn.disabled = true;
+                updatePreview();
+            });
+
+            canvas.addEventListener('click', (e) => {
+                if (!state.imageData) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                const split = state.split;
+                const scale = state.scale;
+                
+                if (state.isColorPicking) {
+                    const pixelX = Math.floor(x / scale);
+                    const pixelY = Math.floor(y / scale);
+                    
+                    const croppedData = cropTarget(); // Gets data *without* transparency since isColorPicking is true
+                    
+                    if (pixelX >= 0 && pixelX < croppedData.width && pixelY >= 0 && pixelY < croppedData.height) {
+                        const idx = (pixelY * croppedData.width + pixelX) * 4;
+                        state.transparentColor = [croppedData.data[idx], croppedData.data[idx+1], croppedData.data[idx+2]];
+                        
+                        const r = state.transparentColor[0];
+                        const g = state.transparentColor[1];
+                        const b = state.transparentColor[2];
+                        const colorBox = `<span style="display:inline-block;width:12px;height:12px;background:rgb(${r},${g},${b});vertical-align:middle;margin-left:5px;border:1px solid #fff;"></span>`;
+                        pickedColorDisplay.innerHTML = `RGB(${r}, ${g}, ${b}) ${colorBox}`;
+                        
+                        state.isColorPicking = false;
+                        pickColorBtn.textContent = 'Pick Color';
+                        clearColorBtn.disabled = false;
+                        canvas.style.cursor = state.isSpriteSheet ? 'pointer' : 'default';
+                        
+                        updatePreview();
+                    }
+                    return;
+                }
+
+                if (!state.isSpriteSheet) return;
+
+                const gridX = Math.floor(x / (split * scale));
+                const gridY = Math.floor(y / (split * scale));
+                
+                const img = state.originalImage;
+                const cols = Math.ceil(img.width / split);
+                const rows = Math.ceil(img.height / split);
+                
+                if (gridX >= 0 && gridX < cols && gridY >= 0 && gridY < rows) {
+                    const spriteKey = `${gridY},${gridX}`;
+                    if (state.selectedSprites.has(spriteKey)) {
+                        state.selectedSprites.delete(spriteKey);
+                    } else {
+                        state.selectedSprites.add(spriteKey);
+                    }
+                    updatePreview();
+                }
             });
 
             document.getElementById('versionSelect').addEventListener('change', (e) => {
@@ -426,6 +537,16 @@
             }
         }
 
+        function clearOutput() {
+            generatedOutput = '';
+            outputContent.textContent = 'Output will appear here...';
+            document.getElementById('spriteCount').textContent = '0';
+            document.getElementById('colorCount').textContent = '0';
+            document.getElementById('roundValue').textContent = '0';
+            downloadBtn.disabled = true;
+            copyBtn.disabled = true;
+        }
+
         function loadImage(file) {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -435,10 +556,10 @@
                     if (state.forceResize) {
                         const resizeCanvas = document.createElement('canvas');
                         resizeCanvas.width = 384;
-                        resizeCanvas.height = 310;
+                        resizeCanvas.height = 320;
                         const rctx = resizeCanvas.getContext('2d');
                         rctx.imageSmoothingEnabled = false;
-                        rctx.drawImage(img, 0, 0, 384, 310);
+                        rctx.drawImage(img, 0, 0, 384, 320);
                         sourceImg = resizeCanvas;
                     }
 
@@ -465,14 +586,7 @@
                     document.getElementById('imageInfo').textContent = sourceImg.width + ' x ' + sourceImg.height + ' px';
                     state.layoutArr = null;
                     
-                    // Clear previous output
-                    generatedOutput = '';
-                    outputContent.textContent = 'Output will appear here...';
-                    document.getElementById('spriteCount').textContent = '0';
-                    document.getElementById('colorCount').textContent = '0';
-                    document.getElementById('roundValue').textContent = '0';
-                    downloadBtn.disabled = true;
-                    copyBtn.disabled = true;
+                    clearOutput();
 
                     updatePreview();
                 };
@@ -506,7 +620,19 @@
             paddedCtx.putImageData(state.paddedImageData, 0, 0);
             
             croppedCtx.drawImage(paddedCanvas, state.target[0], state.target[1], width, height, 0, 0, width, height);
-            return croppedCtx.getImageData(0, 0, width, height);
+            const data = croppedCtx.getImageData(0, 0, width, height);
+            
+            // Apply transparency filter if selected and not currently picking
+            if (state.transparentColor && !state.isColorPicking) {
+                const [tr, tg, tb] = state.transparentColor;
+                for (let i = 0; i < data.data.length; i += 4) {
+                    if (data.data[i] === tr && data.data[i+1] === tg && data.data[i+2] === tb) {
+                        data.data[i+3] = 0; // Make transparent
+                    }
+                }
+            }
+            
+            return data;
         }
 
         function updatePreview() {
@@ -519,6 +645,7 @@
             canvas.width = img.width * scale;
             canvas.height = img.height * scale;
             
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Ensure we can see holes
             ctx.imageSmoothingEnabled = false;
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = img.width;
@@ -570,6 +697,21 @@
             
             for (let j = 0; j < rows; j++) {
                 for (let i = 0; i < cols; i++) {
+                    const spriteKey = `${j},${i}`;
+                    
+                    if (state.isSpriteSheet) {
+                        if (state.selectedSprites.has(spriteKey)) {
+                            ctx.fillStyle = 'rgba(230, 57, 70, 0.4)';
+                            ctx.fillRect(i * split * scale, j * split * scale, split * scale, split * scale);
+                            ctx.strokeStyle = '#e63946';
+                            ctx.lineWidth = 2;
+                            ctx.strokeRect(i * split * scale, j * split * scale, split * scale, split * scale);
+                        } else {
+                            ctx.fillStyle = 'rgba(29, 53, 87, 0.6)';
+                            ctx.fillRect(i * split * scale, j * split * scale, split * scale, split * scale);
+                        }
+                    }
+
                     let textToDraw = "";
                     
                     // If we have converted data, use the deduplicated array
@@ -761,6 +903,11 @@
             for (let yidx = 0; yidx < rows; yidx++) {
                 if (yidx % 5 === 0) await new Promise(r => setTimeout(r, 0)); // Yield to prevent UI freeze
                 for (let xidx = 0; xidx < cols; xidx++) {
+                    
+                    if (state.isSpriteSheet && !state.selectedSprites.has(`${yidx},${xidx}`)) {
+                        continue;
+                    }
+
                     num++;
                     let s = '';
                     
@@ -906,8 +1053,12 @@
             for (let yidx = 0; yidx < rows; yidx++) {
                 if (yidx % 5 === 0) await new Promise(r => setTimeout(r, 0)); // Yield to prevent UI freeze
                 for (let xidx = 0; xidx < cols; xidx++) {
-                    num++;
                     
+                    if (state.isSpriteSheet && !state.selectedSprites.has(`${yidx},${xidx}`)) {
+                        continue;
+                    }
+
+                    num++;
                     // Extract sub-image data as 2D array (same as Python numpy slicing)
                     const subImageData = [];
                     for (let i = yidx * split; i < (yidx + 1) * split; i++) {
@@ -1098,8 +1249,12 @@
             for (let yidx = 0; yidx < rows; yidx++) {
                 if (yidx % 5 === 0) await new Promise(r => setTimeout(r, 0)); // Yield to prevent UI freeze
                 for (let xidx = 0; xidx < cols; xidx++) {
-                    num++;
                     
+                    if (state.isSpriteSheet && !state.selectedSprites.has(`${yidx},${xidx}`)) {
+                        continue;
+                    }
+
+                    num++;
                     const subImageData = [];
                     for (let i = yidx * split; i < (yidx + 1) * split; i++) {
                         const row = [];
